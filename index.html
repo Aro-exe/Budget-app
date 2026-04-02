@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Budget">
-<meta name="theme-color" content="#0f0f0f">
-<title>Budget</title>
-<link rel="stylesheet" href="css/style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Budget">
+  <meta name="theme-color" content="#0f0f0f">
+  <title>Budget</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -47,13 +47,27 @@
   <div class="stats-header">
     <div class="month-nav">
       <button class="month-btn" onclick="changeStatsMonth(-1)">‹</button>
-      <div class="month-name" id="stats-month-name">—</div>
+      <div class="month-name" id="stats-month-name"></div>
       <button class="month-btn" onclick="changeStatsMonth(1)">›</button>
     </div>
+    <div class="sum-grid" style="margin-top:12px;">
+      <div class="sum-card">
+        <div class="sum-label">Revenus</div>
+        <div class="sum-val green" id="stats-income">€0</div>
+      </div>
+      <div class="sum-card">
+        <div class="sum-label">Dépenses</div>
+        <div class="sum-val red" id="stats-expense">€0</div>
+      </div>
+    </div>
   </div>
-  <div style="padding: 0 20px 20px;">
+
+  <!-- Filtre -->
+  <div id="filter-bar"></div>
+
+  <div style="padding: 0 20px 12px;">
     <div class="card">
-      <div class="card-title">Dépenses par catégorie</div>
+      <div class="card-title">Répartition</div>
       <div class="chart-wrap"><canvas id="donut-chart"></canvas></div>
     </div>
     <div class="card">
@@ -64,38 +78,39 @@
 </div>
 
 <!-- PAGE : AJOUTER -->
-<div id="page-add" class="page form-page">
-  <div class="form-title">Ajouter</div>
-  <div class="form-sub">Une dépense ou un revenu</div>
-
-  <div class="form-section">
-    <label class="form-label">Type</label>
-    <div class="type-toggle">
-      <button class="type-btn active-expense" id="btn-expense" onclick="setType('expense')">↓ Dépense</button>
-      <button class="type-btn" id="btn-income" onclick="setType('income')">↑ Revenu</button>
+<div id="page-add" class="page">
+  <div class="header">
+    <div class="header-label">Nouvelle transaction</div>
+    <div class="header-amount" style="font-size:36px;">Montant</div>
+  </div>
+  <div style="padding: 0 20px;">
+    <div class="form-section">
+      <div class="type-toggle">
+        <button id="btn-expense" class="type-btn active-expense" onclick="setType('expense')">
+          ↓ Dépense
+        </button>
+        <button id="btn-income"  class="type-btn" onclick="setType('income')">
+          ↑ Revenu
+        </button>
+      </div>
+    </div>
+    <div class="form-section">
+      <label class="form-label">Montant</label>
+      <input type="number" class="form-input" id="input-amount" placeholder="0" min="0" step="0.01" inputmode="decimal">
+    </div>
+    <div class="form-section">
+      <label class="form-label">Description</label>
+      <input type="text" class="form-input" id="input-desc" placeholder="Ex: Courses Monoprix">
+    </div>
+    <div class="form-section" id="cat-section">
+      <label class="form-label">Catégorie</label>
+      <div class="cat-grid" id="cat-grid"></div>
+    </div>
+    <div class="form-section">
+      <label class="form-label">Date</label>
+      <input type="date" class="form-input" id="input-date">
     </div>
   </div>
-
-  <div class="form-section">
-    <label class="form-label">Montant (€)</label>
-    <input type="number" inputmode="decimal" class="form-input big" id="input-amount" placeholder="0.00" min="0" step="0.01">
-  </div>
-
-  <div class="form-section">
-    <label class="form-label">Description</label>
-    <input type="text" class="form-input" id="input-desc" placeholder="Ex: Courses Monoprix">
-  </div>
-
-  <div class="form-section" id="cat-section">
-    <label class="form-label">Catégorie</label>
-    <div class="cat-grid" id="cat-grid"></div>
-  </div>
-
-  <div class="form-section">
-    <label class="form-label">Date</label>
-    <input type="date" class="form-input" id="input-date">
-  </div>
-
   <button class="submit-btn" onclick="addTransaction()">Enregistrer</button>
 </div>
 
@@ -103,15 +118,42 @@
 <div id="page-settings" class="page">
   <div class="header">
     <div class="header-label">Paramètres</div>
-    <div class="header-amount" style="font-size:36px;">Budgets</div>
+    <div class="header-amount" style="font-size:36px;">Réglages</div>
   </div>
+
+  <!-- Budget global -->
   <div class="settings-section">
-    <div class="settings-title">Budget mensuel par catégorie</div>
+    <div class="settings-title">Budget global mensuel</div>
+    <div class="budget-setting-row">
+      <label class="budget-setting-label">💰 Total du mois</label>
+      <input type="number" id="global-budget-input" class="budget-input" placeholder="0" min="0">
+    </div>
+  </div>
+
+  <!-- Budgets par catégorie -->
+  <div class="settings-section" style="margin-top:20px;">
+    <div class="settings-title">Budget par catégorie</div>
     <div id="budget-settings"></div>
   </div>
   <button class="save-btn" onclick="saveBudgets()">Enregistrer les budgets</button>
 
-  <div class="settings-section" style="margin-top:28px;">
+  <!-- Devise -->
+  <div class="settings-section" style="margin-top:20px;">
+    <div class="settings-title">Devise</div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <select id="currency-select" class="form-input" style="flex:1;">
+        <option value="EUR">€ Euro</option>
+        <option value="USD">$ Dollar US</option>
+        <option value="CAD">CA$ Dollar canadien</option>
+        <option value="GBP">£ Livre sterling</option>
+        <option value="CHF">CHF Franc suisse</option>
+      </select>
+      <button class="save-btn" style="margin:0;flex-shrink:0;" onclick="saveCurrency()">OK</button>
+    </div>
+  </div>
+
+  <!-- Catégories -->
+  <div class="settings-section" style="margin-top:20px;">
     <div class="settings-title">Mes catégories</div>
     <div id="cat-list"></div>
     <div class="new-cat-row">
@@ -121,10 +163,12 @@
     </div>
   </div>
 
-  <div class="settings-section" style="margin-top:28px;">
+  <!-- Sauvegarde -->
+  <div class="settings-section" style="margin-top:20px;">
     <div class="settings-title">Sauvegarde</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      <button class="save-btn" onclick="exportData()">⬇ Exporter mes données (.json)</button>
+      <button class="save-btn" onclick="exportData()">⬇ Exporter JSON</button>
+      <button class="save-btn" onclick="exportCSV()">⬇ Exporter CSV (Excel)</button>
       <button class="save-btn" onclick="document.getElementById('import-input').click()">⬆ Importer une sauvegarde</button>
       <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)">
       <div style="font-size:12px;color:var(--text3);padding:0 4px;line-height:1.6;">
@@ -133,6 +177,7 @@
     </div>
   </div>
 
+  <!-- Danger -->
   <div class="settings-section" style="margin-top:20px;">
     <div class="settings-title">Danger</div>
     <button class="save-btn" style="background:var(--red-dim);border-color:var(--red);color:var(--red);" onclick="clearData()">Effacer toutes les données</button>
@@ -141,15 +186,15 @@
 
 <!-- NAVIGATION -->
 <nav class="nav">
-  <button class="nav-btn active" id="nav-home" onclick="showPage('home')">
+  <button class="nav-btn active" id="nav-home"     onclick="showPage('home')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Accueil
   </button>
-  <button class="nav-btn" id="nav-stats" onclick="showPage('stats')">
+  <button class="nav-btn" id="nav-stats"    onclick="showPage('stats')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
     Stats
   </button>
-  <button class="nav-btn" id="nav-add" onclick="showPage('add')">
+  <button class="nav-btn" id="nav-add"      onclick="showPage('add')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
     Ajouter
   </button>
@@ -161,7 +206,6 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- Scripts dans l'ordre de dépendance -->
 <script src="js/data.js"></script>
 <script src="js/render.js"></script>
 <script src="js/app.js"></script>
