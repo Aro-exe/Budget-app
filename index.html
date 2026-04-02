@@ -112,6 +112,16 @@
   <button class="save-btn" onclick="saveBudgets()">Enregistrer les budgets</button>
 
   <div class="settings-section" style="margin-top:28px;">
+    <div class="settings-title">Mes catégories</div>
+    <div id="cat-list"></div>
+    <div class="new-cat-row">
+      <input type="text" id="new-cat-emoji" class="new-cat-emoji-input" placeholder="🏷️" maxlength="2">
+      <input type="text" id="new-cat-label" class="new-cat-label-input" placeholder="Nom de la catégorie">
+      <button class="new-cat-add-btn" onclick="addCategory()">+</button>
+    </div>
+  </div>
+
+  <div class="settings-section" style="margin-top:28px;">
     <div class="settings-title">Sauvegarde</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button class="save-btn" onclick="exportData()">⬇ Exporter mes données (.json)</button>
