@@ -1,5 +1,5 @@
 // =====================
-// CATÉGORIES DÉPENSES
+// CATÉGORIES PAR DÉFAUT
 // =====================
 const DEFAULT_CATEGORIES = [
   { id: 'food',      label: 'Alimentation', emoji: '🛒', color: '#e8c97a' },
@@ -12,130 +12,75 @@ const DEFAULT_CATEGORIES = [
   { id: 'other',     label: 'Autre',        emoji: '📦', color: '#a0a0a0' },
 ];
 
-// =====================
-// CATÉGORIES REVENUS
-// =====================
-const DEFAULT_INCOME_CATEGORIES = [
-  { id: 'inc_salary',     label: 'Salaire',       emoji: '💼', color: '#52c97a' },
-  { id: 'inc_freelance',  label: 'Freelance',     emoji: '🧑‍💻', color: '#7ae8b4' },
-  { id: 'inc_refund',     label: 'Remboursement', emoji: '↩️',  color: '#7ac4e8' },
-  { id: 'inc_invest',     label: 'Investissement',emoji: '📈', color: '#e8c97a' },
-  { id: 'inc_gift',       label: 'Cadeau',        emoji: '🎁', color: '#e87a9f' },
-  { id: 'inc_other',      label: 'Autre',         emoji: '💰', color: '#a0a0a0' },
-];
+// CATEGORIES est désormais dynamique (chargé/sauvegardé dans localStorage)
+let CATEGORIES = [...DEFAULT_CATEGORIES];
 
-let CATEGORIES        = [...DEFAULT_CATEGORIES];
-let INCOME_CATEGORIES = [...DEFAULT_INCOME_CATEGORIES];
-
+// Palette de couleurs pour les nouvelles catégories
 const PALETTE = [
   '#e8c97a','#7ac4e8','#a87ae8','#e87a9f',
   '#7ae8b4','#e8a87a','#7a9fe8','#a0a0a0',
   '#e87a7a','#7ae8e8','#c4e87a','#b07ae8',
+  '#7ae8a0','#e8b07a','#7ab0e8','#e8d07a',
 ];
 
 // =====================
-// STATE
+// STATE (données en mémoire)
 // =====================
 const state = {
-  transactions:   [],
-  budgets:        {},
-  globalBudget:   0,
-  currency:       'EUR',
-  currentType:    'expense',
-  selectedCat:    'food',
-  selectedIncCat: 'inc_salary',
-  statsMonth:     new Date().getMonth(),
-  statsYear:      new Date().getFullYear(),
-  editingId:      null,
-  filterText:     '',
-  filterType:     'all',
-  filterCat:      'all',
+  transactions: [],
+  budgets:      {},
+  currentType:  'expense',
+  selectedCat:  'food',
+  statsMonth:   new Date().getMonth(),
+  statsYear:    new Date().getFullYear(),
 };
 
 // =====================
-// PERSISTANCE
+// PERSISTANCE LOCALSTORAGE
 // =====================
 const STORAGE_KEY = 'budget-app-v1';
 
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    transactions:     state.transactions,
-    budgets:          state.budgets,
-    globalBudget:     state.globalBudget,
-    currency:         state.currency,
-    categories:       CATEGORIES,
-    incomeCategories: INCOME_CATEGORIES,
-  }));
+function loadData() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    state.transactions = parsed.transactions || [];
+    state.budgets      = parsed.budgets      || {};
+    if (parsed.categories && parsed.categories.length > 0) {
+      CATEGORIES = parsed.categories;
+    }
+  }
+  CATEGORIES.forEach(c => {
+    if (state.budgets[c.id] === undefined) state.budgets[c.id] = 0;
+  });
 }
 
-function loadData() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    CATEGORIES.forEach(c => state.budgets[c.id] = 0);
-    return;
-  }
-  try {
-    const d = JSON.parse(raw);
-    state.transactions = d.transactions || [];
-    state.budgets      = d.budgets      || {};
-    state.globalBudget = d.globalBudget || 0;
-    state.currency     = d.currency     || 'EUR';
-    if (d.categories)       CATEGORIES        = d.categories;
-    if (d.incomeCategories) INCOME_CATEGORIES = d.incomeCategories;
-    // S'assurer que chaque catégorie a un budget initialisé
-    CATEGORIES.forEach(c => { if (state.budgets[c.id] === undefined) state.budgets[c.id] = 0; });
-  } catch(e) {
-    console.error('loadData error', e);
-  }
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    transactions: state.transactions,
+    budgets:      state.budgets,
+    categories:   CATEGORIES,
+  }));
 }
 
 // =====================
 // EXPORT JSON
 // =====================
 function exportData() {
-  const data = JSON.stringify({
-    transactions:     state.transactions,
-    budgets:          state.budgets,
-    globalBudget:     state.globalBudget,
-    currency:         state.currency,
-    categories:       CATEGORIES,
-    incomeCategories: INCOME_CATEGORIES,
-  }, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
+  const data = {
+    transactions: state.transactions,
+    budgets:      state.budgets,
+    exportedAt:   new Date().toISOString(),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
+  const date = new Date().toISOString().split('T')[0];
   a.href     = url;
-  a.download = `budget-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `budget-sauvegarde-${date}.json`;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-// =====================
-// EXPORT CSV
-// =====================
-function exportCSV() {
-  const allCats = [...CATEGORIES, ...INCOME_CATEGORIES];
-  const header  = ['Date','Type','Montant','Description','Catégorie'];
-  const rows    = state.transactions
-    .sort((a,b) => new Date(b.date) - new Date(a.date))
-    .map(t => {
-      const cat = allCats.find(c => c.id === t.category) || { label: 'Autre' };
-      return [
-        t.date,
-        t.type === 'expense' ? 'Dépense' : 'Revenu',
-        t.type === 'expense' ? -t.amount : t.amount,
-        `"${(t.desc || '').replace(/"/g, '""')}"`,
-        cat.label,
-      ].join(';');
-    });
-  const csv  = [header.join(';'), ...rows].join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `budget-${new Date().toISOString().split('T')[0]}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  showToast('✓ Sauvegarde téléchargée');
 }
 
 // =====================
@@ -144,18 +89,18 @@ function exportCSV() {
 function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
+
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.transactions || !data.budgets) throw new Error('Format invalide');
-      if (!confirm(`Importer ${data.transactions.length} transaction(s) ? Tes données actuelles seront remplacées.`)) return;
+
+      const count = data.transactions.length;
+      if (!confirm(`Importer ${count} transaction(s) ? Tes données actuelles seront remplacées.`)) return;
+
       state.transactions = data.transactions;
       state.budgets      = data.budgets;
-      state.globalBudget = data.globalBudget || 0;
-      state.currency     = data.currency     || 'EUR';
-      if (data.categories)       CATEGORIES        = data.categories;
-      if (data.incomeCategories) INCOME_CATEGORIES = data.incomeCategories;
       saveData();
       showToast('✓ Données importées !');
       showPage('home');
@@ -168,16 +113,13 @@ function importData(event) {
 }
 
 // =====================
-// EFFACER
+// EFFACER TOUTES LES DONNÉES
 // =====================
 function clearData() {
   if (!confirm('Effacer toutes les transactions, budgets et catégories personnalisées ?')) return;
   state.transactions = [];
   state.budgets      = {};
-  state.globalBudget = 0;
-  state.currency     = 'EUR';
   CATEGORIES        = [...DEFAULT_CATEGORIES];
-  INCOME_CATEGORIES = [...DEFAULT_INCOME_CATEGORIES];
   CATEGORIES.forEach(c => state.budgets[c.id] = 0);
   saveData();
   showToast('Données effacées');
@@ -188,8 +130,7 @@ function clearData() {
 // HELPERS
 // =====================
 function getCat(id) {
-  return [...CATEGORIES, ...INCOME_CATEGORIES].find(c => c.id === id)
-      || CATEGORIES[CATEGORIES.length - 1];
+  return CATEGORIES.find(c => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 }
 
 function getMonthTx(month, year) {
@@ -206,13 +147,13 @@ function getCurrentMonthTx() {
 
 function fmt(n) {
   return new Intl.NumberFormat('fr-FR', {
-    style: 'currency', currency: state.currency || 'EUR', maximumFractionDigits: 0
+    style: 'currency', currency: 'EUR', maximumFractionDigits: 0
   }).format(n);
 }
 
 function fmtDec(n) {
   return new Intl.NumberFormat('fr-FR', {
-    style: 'currency', currency: state.currency || 'EUR',
+    style: 'currency', currency: 'EUR',
     minimumFractionDigits: 2, maximumFractionDigits: 2
   }).format(n);
 }
