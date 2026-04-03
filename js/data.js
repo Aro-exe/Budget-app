@@ -1,5 +1,5 @@
 // =====================
-// CATÉGORIES PAR DÉFAUT
+// CATÉGORIES PAR DÉFAUT (DÉPENSES)
 // =====================
 const DEFAULT_CATEGORIES = [
   { id: 'food',      label: 'Alimentation', emoji: '🛒', color: '#e8c97a' },
@@ -12,8 +12,21 @@ const DEFAULT_CATEGORIES = [
   { id: 'other',     label: 'Autre',        emoji: '📦', color: '#a0a0a0' },
 ];
 
+// =====================
+// CATÉGORIES PAR DÉFAUT (REVENUS)
+// =====================
+const DEFAULT_INCOME_CATEGORIES = [
+  { id: 'salary',     label: 'Salaire',        emoji: '💵', color: '#52c97a' },
+  { id: 'freelance',  label: 'Freelance',      emoji: '💼', color: '#7ae8b4' },
+  { id: 'refund',     label: 'Remboursement',  emoji: '🔄', color: '#7ac4e8' },
+  { id: 'investment', label: 'Investissement', emoji: '📈', color: '#e8c97a' },
+  { id: 'gift',       label: 'Cadeau',         emoji: '🎁', color: '#e87a9f' },
+  { id: 'other_inc',  label: 'Autre',          emoji: '📦', color: '#a0a0a0' },
+];
+
 // CATEGORIES est désormais dynamique (chargé/sauvegardé dans localStorage)
 let CATEGORIES = [...DEFAULT_CATEGORIES];
+let INCOME_CATEGORIES = [...DEFAULT_INCOME_CATEGORIES];
 
 // Palette de couleurs pour les nouvelles catégories
 const PALETTE = [
@@ -27,13 +40,60 @@ const PALETTE = [
 // STATE (données en mémoire)
 // =====================
 const state = {
-  transactions: [],
-  budgets:      {},
-  currentType:  'expense',
-  selectedCat:  'food',
-  statsMonth:   new Date().getMonth(),
-  statsYear:    new Date().getFullYear(),
+  transactions:    [],
+  budgets:         {},
+  globalBudget:    0,
+  recurringTx:     [],
+  currentType:     'expense',
+  selectedCat:     'food',
+  selectedIncomeCat: 'salary',
+  statsMonth:      new Date().getMonth(),
+  statsYear:       new Date().getFullYear(),
 };
+
+// =====================
+// HISTORIQUE UNDO
+// =====================
+const undoStack = [];
+const MAX_UNDO = 20;
+
+function pushUndo(actionLabel) {
+  undoStack.push({
+    label: actionLabel,
+    snapshot: JSON.parse(JSON.stringify({
+      transactions: state.transactions,
+      budgets: state.budgets,
+      globalBudget: state.globalBudget,
+      recurringTx: state.recurringTx,
+      categories: CATEGORIES,
+      incomeCategories: INCOME_CATEGORIES,
+    })),
+    timestamp: Date.now(),
+  });
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  showUndoButton();
+}
+
+function popUndo() {
+  if (undoStack.length === 0) return null;
+  return undoStack.pop();
+}
+
+function showUndoButton() {
+  const btn = document.getElementById('undo-btn');
+  if (!btn) return;
+  btn.style.display = 'block';
+  clearTimeout(btn._hideTimer);
+  btn._hideTimer = setTimeout(() => { btn.style.display = 'none'; }, 8000);
+}
+
+function hideUndoButton() {
+  const btn = document.getElementById('undo-btn');
+  if (btn) {
+    btn.style.display = 'none';
+    clearTimeout(btn._hideTimer);
+  }
+}
 
 // =====================
 // PERSISTANCE LOCALSTORAGE
@@ -46,8 +106,13 @@ function loadData() {
     const parsed = JSON.parse(saved);
     state.transactions = parsed.transactions || [];
     state.budgets      = parsed.budgets      || {};
+    state.globalBudget = parsed.globalBudget  || 0;
+    state.recurringTx  = parsed.recurringTx   || [];
     if (parsed.categories && parsed.categories.length > 0) {
       CATEGORIES = parsed.categories;
+    }
+    if (parsed.incomeCategories && parsed.incomeCategories.length > 0) {
+      INCOME_CATEGORIES = parsed.incomeCategories;
     }
   }
   CATEGORIES.forEach(c => {
@@ -57,10 +122,49 @@ function loadData() {
 
 function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    transactions: state.transactions,
-    budgets:      state.budgets,
-    categories:   CATEGORIES,
+    transactions:     state.transactions,
+    budgets:          state.budgets,
+    globalBudget:     state.globalBudget,
+    recurringTx:      state.recurringTx,
+    categories:       CATEGORIES,
+    incomeCategories: INCOME_CATEGORIES,
   }));
+}
+
+// =====================
+// TRANSACTIONS RÉCURRENTES
+// =====================
+function processRecurringTransactions() {
+  const today = new Date();
+  const year  = today.getFullYear();
+  const month = today.getMonth();
+
+  state.recurringTx.forEach(rec => {
+    if (!rec.active) return;
+    // Vérifier si une transaction récurrente existe déjà ce mois
+    const exists = state.transactions.some(t =>
+      t.recurringId === rec.id &&
+      new Date(t.date).getMonth() === month &&
+      new Date(t.date).getFullYear() === year
+    );
+    if (exists) return;
+
+    // Si on est passé le jour du mois (ou c'est aujourd'hui), créer la transaction
+    const day = Math.min(rec.dayOfMonth, new Date(year, month + 1, 0).getDate());
+    if (today.getDate() >= day) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      state.transactions.unshift({
+        id:          Date.now() + Math.random(),
+        type:        rec.type,
+        amount:      rec.amount,
+        desc:        rec.desc,
+        category:    rec.category,
+        date:        dateStr,
+        recurringId: rec.id,
+      });
+    }
+  });
+  saveData();
 }
 
 // =====================
@@ -68,9 +172,13 @@ function saveData() {
 // =====================
 function exportData() {
   const data = {
-    transactions: state.transactions,
-    budgets:      state.budgets,
-    exportedAt:   new Date().toISOString(),
+    transactions:     state.transactions,
+    budgets:          state.budgets,
+    globalBudget:     state.globalBudget,
+    recurringTx:      state.recurringTx,
+    categories:       CATEGORIES,
+    incomeCategories: INCOME_CATEGORIES,
+    exportedAt:       new Date().toISOString(),
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -99,8 +207,13 @@ function importData(event) {
       const count = data.transactions.length;
       if (!confirm(`Importer ${count} transaction(s) ? Tes données actuelles seront remplacées.`)) return;
 
+      pushUndo('Import de données');
       state.transactions = data.transactions;
       state.budgets      = data.budgets;
+      state.globalBudget = data.globalBudget || 0;
+      state.recurringTx  = data.recurringTx  || [];
+      if (data.categories) CATEGORIES = data.categories;
+      if (data.incomeCategories) INCOME_CATEGORIES = data.incomeCategories;
       saveData();
       showToast('✓ Données importées !');
       showPage('home');
@@ -117,9 +230,13 @@ function importData(event) {
 // =====================
 function clearData() {
   if (!confirm('Effacer toutes les transactions, budgets et catégories personnalisées ?')) return;
+  pushUndo('Effacement des données');
   state.transactions = [];
   state.budgets      = {};
-  CATEGORIES        = [...DEFAULT_CATEGORIES];
+  state.globalBudget = 0;
+  state.recurringTx  = [];
+  CATEGORIES         = [...DEFAULT_CATEGORIES];
+  INCOME_CATEGORIES  = [...DEFAULT_INCOME_CATEGORIES];
   CATEGORIES.forEach(c => state.budgets[c.id] = 0);
   saveData();
   showToast('Données effacées');
@@ -130,7 +247,9 @@ function clearData() {
 // HELPERS
 // =====================
 function getCat(id) {
-  return CATEGORIES.find(c => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
+  return CATEGORIES.find(c => c.id === id)
+    || INCOME_CATEGORIES.find(c => c.id === id)
+    || CATEGORIES[CATEGORIES.length - 1];
 }
 
 function getMonthTx(month, year) {
@@ -161,4 +280,14 @@ function fmtDec(n) {
 function formatDate(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
+
+// Calculer le nombre de mois avec des transactions
+function getActiveMonthCount() {
+  const months = new Set();
+  state.transactions.forEach(t => {
+    const d = new Date(t.date);
+    months.add(`${d.getFullYear()}-${d.getMonth()}`);
+  });
+  return Math.max(1, months.size);
 }

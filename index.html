@@ -31,9 +31,17 @@
     </div>
   </div>
   <div style="padding: 0 20px 12px;">
+    <div class="card" id="global-budget-card" style="display:none;">
+      <div class="card-title">Budget global</div>
+      <div id="global-budget-overview"></div>
+    </div>
     <div class="card">
       <div class="card-title">Budgets ce mois</div>
       <div id="budget-overview"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top 5 dépenses</div>
+      <div id="top5-expenses"></div>
     </div>
     <div class="card">
       <div class="card-title">Transactions récentes</div>
@@ -52,9 +60,34 @@
     </div>
   </div>
   <div style="padding: 0 20px 20px;">
+    <!-- Recherche et filtres -->
+    <div class="card search-card">
+      <div class="card-title">Recherche & Filtres</div>
+      <input type="text" class="form-input search-input" id="filter-search" placeholder="Rechercher une transaction..." oninput="applyFilters()">
+      <div class="filter-row">
+        <select class="form-input filter-select" id="filter-type" onchange="applyFilters()">
+          <option value="all">Tous types</option>
+          <option value="expense">Dépenses</option>
+          <option value="income">Revenus</option>
+        </select>
+        <select class="form-input filter-select" id="filter-cat" onchange="applyFilters()">
+          <option value="all">Toutes catégories</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <input type="date" class="form-input filter-date" id="filter-date-from" onchange="applyFilters()" placeholder="Du">
+        <input type="date" class="form-input filter-date" id="filter-date-to" onchange="applyFilters()" placeholder="Au">
+      </div>
+      <button class="filter-clear-btn" onclick="clearFilters()">Effacer les filtres</button>
+    </div>
+
     <div class="card">
       <div class="card-title">Dépenses par catégorie</div>
       <div class="chart-wrap"><canvas id="donut-chart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Moyenne dépenses / catégorie</div>
+      <div id="avg-expenses"></div>
     </div>
     <div class="card">
       <div class="card-title">Toutes les transactions</div>
@@ -65,8 +98,8 @@
 
 <!-- PAGE : AJOUTER -->
 <div id="page-add" class="page form-page">
-  <div class="form-title">Ajouter</div>
-  <div class="form-sub">Une dépense ou un revenu</div>
+  <div class="form-title" id="form-title">Ajouter</div>
+  <div class="form-sub" id="form-sub">Une dépense ou un revenu</div>
 
   <div class="form-section">
     <label class="form-label">Type</label>
@@ -91,33 +124,86 @@
     <div class="cat-grid" id="cat-grid"></div>
   </div>
 
+  <div class="form-section" id="income-cat-section" style="display:none;">
+    <label class="form-label">Catégorie de revenu</label>
+    <div class="cat-grid" id="income-cat-grid"></div>
+  </div>
+
   <div class="form-section">
     <label class="form-label">Date</label>
     <input type="date" class="form-input" id="input-date">
   </div>
 
-  <button class="submit-btn" onclick="addTransaction()">Enregistrer</button>
+  <input type="hidden" id="edit-tx-id" value="">
+  <button class="submit-btn" id="submit-btn" onclick="addTransaction()">Enregistrer</button>
+  <button class="cancel-edit-btn" id="cancel-edit-btn" style="display:none;" onclick="cancelEdit()">Annuler la modification</button>
 </div>
 
 <!-- PAGE : RÉGLAGES -->
 <div id="page-settings" class="page">
   <div class="header">
     <div class="header-label">Paramètres</div>
-    <div class="header-amount" style="font-size:36px;">Budgets</div>
+    <div class="header-amount" style="font-size:36px;">Réglages</div>
   </div>
+
   <div class="settings-section">
+    <div class="settings-title">Budget global mensuel</div>
+    <div class="budget-edit">
+      <div class="budget-edit-left">
+        <span class="budget-edit-icon">💰</span>
+        <span class="budget-edit-name">Budget total</span>
+      </div>
+      <input type="number" class="budget-edit-input" id="global-budget-input"
+             placeholder="0" inputmode="numeric" min="0">
+    </div>
+    <button class="save-btn" style="margin-top:10px;" onclick="saveGlobalBudget()">Enregistrer le budget global</button>
+  </div>
+
+  <div class="settings-section" style="margin-top:20px;">
     <div class="settings-title">Budget mensuel par catégorie</div>
     <div id="budget-settings"></div>
   </div>
   <button class="save-btn" onclick="saveBudgets()">Enregistrer les budgets</button>
 
   <div class="settings-section" style="margin-top:28px;">
-    <div class="settings-title">Mes catégories</div>
+    <div class="settings-title">Catégories de dépenses</div>
     <div id="cat-list"></div>
     <div class="new-cat-row">
       <input type="text" id="new-cat-emoji" class="new-cat-emoji-input" placeholder="🏷️" maxlength="2">
       <input type="text" id="new-cat-label" class="new-cat-label-input" placeholder="Nom de la catégorie">
       <button class="new-cat-add-btn" onclick="addCategory()">+</button>
+    </div>
+  </div>
+
+  <div class="settings-section" style="margin-top:28px;">
+    <div class="settings-title">Catégories de revenus</div>
+    <div id="income-cat-list"></div>
+    <div class="new-cat-row">
+      <input type="text" id="new-income-cat-emoji" class="new-cat-emoji-input" placeholder="🏷️" maxlength="2">
+      <input type="text" id="new-income-cat-label" class="new-cat-label-input" placeholder="Nom de la catégorie">
+      <button class="new-cat-add-btn" onclick="addIncomeCategory()">+</button>
+    </div>
+  </div>
+
+  <div class="settings-section" style="margin-top:28px;">
+    <div class="settings-title">Transactions récurrentes</div>
+    <div id="recurring-list"></div>
+    <button class="save-btn" onclick="showAddRecurring()" style="margin-top:10px;">+ Ajouter une récurrence</button>
+    <div id="recurring-form" style="display:none;margin-top:14px;">
+      <div class="rec-form-grid">
+        <select class="form-input" id="rec-type" onchange="updateRecFormCats()">
+          <option value="expense">Dépense</option>
+          <option value="income">Revenu</option>
+        </select>
+        <input type="number" class="form-input" id="rec-amount" placeholder="Montant" inputmode="decimal" min="0" step="0.01">
+        <input type="text" class="form-input" id="rec-desc" placeholder="Description">
+        <select class="form-input" id="rec-cat"></select>
+        <input type="number" class="form-input" id="rec-day" placeholder="Jour du mois (1-28)" min="1" max="28" inputmode="numeric">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="save-btn" style="flex:1;" onclick="saveRecurring()">Enregistrer</button>
+        <button class="save-btn" style="flex:1;background:var(--bg3);border-color:var(--border);color:var(--text2);" onclick="hideRecurringForm()">Annuler</button>
+      </div>
     </div>
   </div>
 
@@ -160,6 +246,9 @@
 </nav>
 
 <div class="toast" id="toast"></div>
+
+<!-- Bouton Undo flottant -->
+<button class="undo-btn" id="undo-btn" style="display:none;" onclick="undoAction()">↩ Annuler</button>
 
 <!-- Scripts dans l'ordre de dépendance -->
 <script src="js/data.js"></script>
